@@ -3,7 +3,8 @@ import { useI18n } from 'vue-i18n'
 const priorityMeta = [
   { color: '#FF7F0A', text: (t: any) => t('priority.high'), key: 1 },
   { color: '#1BA784', text: (t: any) => t('priority.normal'), key: 0 },
-  { color: '#FFC300', text: (t: any) => t('priority.low'), key: -1 }
+  { color: '#FFC300', text: (t: any) => t('priority.low'), key: -1 },
+  { color: '#8B8B8B', text: (t: any) => t('priority.skip'), key: -2 }
 ]
 
 export const priorityOptions = priorityMeta.map((item) => ({
@@ -33,5 +34,10 @@ export const priorityTagColorConfig: Record<string, { color: string; textColor: 
     color: `color-mix(in srgb, ${priorityMeta[2].color} 50%, transparent)`,
     textColor: priorityMeta[2].color,
     borderColor: `color-mix(in srgb, ${priorityMeta[2].color} 50%, transparent)`
+  },
+  '-2': {
+    color: `color-mix(in srgb, ${priorityMeta[3].color} 50%, transparent)`,
+    textColor: priorityMeta[3].color,
+    borderColor: `color-mix(in srgb, ${priorityMeta[3].color} 50%, transparent)`
   }
 }

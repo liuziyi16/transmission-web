@@ -183,7 +183,8 @@
   "priority": {
     "high": "高",
     "normal": "正常",
-    "low": "低"
+    "low": "低",
+    "skip": "不下载"
   },
   "statusBar": {
     "version": "TR版本: {version}",
@@ -456,7 +457,8 @@
       "setPriorityFailed": "设置优先级失败",
       "filePrioritySet": "已设置文件优先级为 {priority}",
       "setFilePriorityFailed": "设置文件优先级失败",
-      "normal": "正常"
+      "normal": "正常",
+      "applyChanges": "应用更改"
     },
     "peers": {
       "peers": "用户",

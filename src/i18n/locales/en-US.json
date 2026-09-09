@@ -183,7 +183,8 @@
   "priority": {
     "high": "High",
     "normal": "Normal",
-    "low": "Low"
+    "low": "Low",
+    "skip": "Skip"
   },
   "statusBar": {
     "version": "TR Version: {version}",
@@ -456,7 +457,8 @@
       "setPriorityFailed": "Failed to set priority",
       "filePrioritySet": "File priority set to {priority}",
       "setFilePriorityFailed": "Failed to set file priority",
-      "normal": "Normal"
+      "normal": "Normal",
+      "applyChanges": "Apply Changes"
     },
     "peers": {
       "peers": "Peers",

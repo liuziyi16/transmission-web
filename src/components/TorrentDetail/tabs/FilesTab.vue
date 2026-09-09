@@ -6,6 +6,9 @@
       </n-text>
       <div class="flex gap-2">
         <n-button size="small" @click="selectAll">{{ t('torrentDetail.files.selectAll') }}</n-button>
+        <n-button size="small" :loading="applying" :disabled="!hasPendingChanges" @click="applyCheckedChanges">
+          {{ t('torrentDetail.files.applyChanges') }}
+        </n-button>
         <n-dropdown :options="priorityOptions" @select="handleBatchPriority" placement="bottom-end">
           <n-button size="small">{{ t('torrentDetail.files.batchSetPriority') }}</n-button>
         </n-dropdown>
@@ -37,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Torrent } from '@/api/rpc'
+import type { Torrent, TorrentSetArgs } from '@/api/rpc'
 import { rpc } from '@/api/rpc'
 import { formatSize } from '@/utils'
 import { getPriorityString, type PriorityNumberType } from '@/types/tr'
@@ -231,7 +234,7 @@ const renderSuffix = (props: any) => {
     }),
     // 进度百分比
     h('span', { class: 'text-gray-500 min-w-[40px] text-right' }, `${Math.round(option.progress * 100)}%`),
-    // 优先级下拉选择
+    // 优先级下拉选择（未勾选下载的文件显示“不下载”标签）
     !option.isDirectory
       ? h(
           NDropdown,
@@ -241,70 +244,88 @@ const renderSuffix = (props: any) => {
             trigger: 'click',
             onSelect: (key: number) => handleFilePriority(option.fileIndex!, key)
           },
-          () =>
-            h(
+          () => {
+            const isSkipped = !option.wanted
+            const tagColor = isSkipped ? priorityTagColorConfig['-2'] : priorityTagColorConfig[option.priority]
+            const tagText = isSkipped
+              ? t('priority.skip')
+              : getPriorityString(option.priority as PriorityNumberType) || t('torrentDetail.files.normal')
+            return h(
               NTag,
               {
                 size: 'small',
-                color: priorityTagColorConfig[option.priority],
+                color: tagColor,
                 round: true,
                 bordered: false,
                 style: { cursor: 'pointer', minWidth: '48px', justifyContent: 'center' }
               },
-              () => getPriorityString(option.priority as PriorityNumberType) || t('torrentDetail.files.normal')
+              () => tagText
             )
+          }
         )
       : null
   ])
 }
 
-// 处理选中状态变化
-const onCheckedKeysChange = async (keys: string[]) => {
+// 处理选中状态变化：仅更新本地状态，不触发请求；由用户点击“应用更改”后统一提交
+const onCheckedKeysChange = (keys: string[]) => {
   checkedKeys.value = keys
+}
 
-  // 获取需要下载和不需要下载的文件索引
+// 计算当前勾选与后端 wanted 状态的差异
+const checkedDiff = computed(() => {
   const wantedIndices: number[] = []
   const unwantedIndices: number[] = []
 
   props.torrent.files?.forEach((file, index) => {
-    if (keys.includes(file.name)) {
+    const stat = props.torrent.fileStats?.[index]
+    const checked = checkedKeys.value.includes(file.name)
+    if (checked && !(stat?.wanted ?? false)) {
       wantedIndices.push(index)
-    } else {
+    } else if (!checked && (stat?.wanted ?? false)) {
       unwantedIndices.push(index)
     }
   })
 
+  return { wantedIndices, unwantedIndices }
+})
+
+const hasPendingChanges = computed(
+  () => checkedDiff.value.wantedIndices.length > 0 || checkedDiff.value.unwantedIndices.length > 0
+)
+
+const applying = ref(false)
+
+// 提交勾选差异到后端
+const applyCheckedChanges = async () => {
+  const { wantedIndices, unwantedIndices } = checkedDiff.value
+  if (wantedIndices.length === 0 && unwantedIndices.length === 0) {
+    return
+  }
+
+  applying.value = true
   try {
-    await rpc.torrentSet({
-      ids: props.torrent.id,
-      'files-wanted': wantedIndices,
-      'files-unwanted': unwantedIndices
-    })
+    const args: TorrentSetArgs = { ids: props.torrent.id }
+    if (wantedIndices.length > 0) {
+      args['files-wanted'] = wantedIndices
+    }
+    if (unwantedIndices.length > 0) {
+      args['files-unwanted'] = unwantedIndices
+    }
+    await rpc.torrentSet(args)
     message.success(t('torrentDetail.files.fileSelectionUpdated'))
   } catch (error) {
     console.error('更新文件选择失败:', error)
     message.error(t('torrentDetail.files.updateFileSelectionFailed'))
+  } finally {
+    applying.value = false
   }
 }
 
-// 全选
-const selectAll = async () => {
+// 全选：仅更新本地勾选状态，与单文件勾选一致，由“应用更改”统一提交
+const selectAll = () => {
   const allKeys = props.torrent.files?.map((file) => file.name) || []
   checkedKeys.value = allKeys
-
-  const wantedIndices = props.torrent.files?.map((_, index) => index) || []
-
-  try {
-    await rpc.torrentSet({
-      ids: props.torrent.id,
-      'files-wanted': wantedIndices,
-      'files-unwanted': []
-    })
-    message.success(t('torrentDetail.files.allFilesSelected'))
-  } catch (error) {
-    console.error('全选失败:', error)
-    message.error(t('torrentDetail.files.selectAllFailed'))
-  }
 }
 
 // 批量设置优先级
@@ -323,20 +344,26 @@ const handleBatchPriority = async (priority: number) => {
   }
 
   try {
-    const priorityArgs: Record<string, number[]> = {}
+    const args: TorrentSetArgs = { ids: props.torrent.id }
 
-    if (priority === 1) {
-      priorityArgs['priority-high'] = selectedIndices
-    } else if (priority === -1) {
-      priorityArgs['priority-low'] = selectedIndices
+    if (priority === -2) {
+      // 不下载：移出下载列表
+      args['files-unwanted'] = selectedIndices
     } else {
-      priorityArgs['priority-normal'] = selectedIndices
+      // 设置优先级前先确保文件在下载列表中
+      args['files-wanted'] = selectedIndices
+      const priorityArgs: Record<string, number[]> = {}
+      if (priority === 1) {
+        priorityArgs['priority-high'] = selectedIndices
+      } else if (priority === -1) {
+        priorityArgs['priority-low'] = selectedIndices
+      } else {
+        priorityArgs['priority-normal'] = selectedIndices
+      }
+      Object.assign(args, priorityArgs)
     }
 
-    await rpc.torrentSet({
-      ids: props.torrent.id,
-      ...priorityArgs
-    })
+    await rpc.torrentSet(args)
     torrentStore.fetchDetails()
     message.success(
       t('torrentDetail.files.prioritySet', { count: selectedIndices.length, priority: getPriorityString(priority as PriorityNumberType) })
@@ -350,20 +377,26 @@ const handleBatchPriority = async (priority: number) => {
 // 单个文件优先级设置
 const handleFilePriority = async (fileIndex: number, priority: number) => {
   try {
-    const priorityArgs: Record<string, number[]> = {}
+    const args: TorrentSetArgs = { ids: props.torrent.id }
 
-    if (priority === 1) {
-      priorityArgs['priority-high'] = [fileIndex]
-    } else if (priority === -1) {
-      priorityArgs['priority-low'] = [fileIndex]
+    if (priority === -2) {
+      // 不下载：移出下载列表
+      args['files-unwanted'] = [fileIndex]
     } else {
-      priorityArgs['priority-normal'] = [fileIndex]
+      // 设置优先级前先确保文件在下载列表中
+      args['files-wanted'] = [fileIndex]
+      const priorityArgs: Record<string, number[]> = {}
+      if (priority === 1) {
+        priorityArgs['priority-high'] = [fileIndex]
+      } else if (priority === -1) {
+        priorityArgs['priority-low'] = [fileIndex]
+      } else {
+        priorityArgs['priority-normal'] = [fileIndex]
+      }
+      Object.assign(args, priorityArgs)
     }
 
-    await rpc.torrentSet({
-      ids: props.torrent.id,
-      ...priorityArgs
-    })
+    await rpc.torrentSet(args)
     torrentStore.fetchDetails()
 
     message.success(t('torrentDetail.files.filePrioritySet', { priority: getPriorityString(priority as PriorityNumberType) }))
