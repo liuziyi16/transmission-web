@@ -188,11 +188,14 @@ const defaultExpandedKeys = computed(() => {
   return keys
 })
 
+// 是否存在未应用的本地勾选修改：存在期间轮询刷新不覆盖用户勾选
+const hasLocalEdits = ref(false)
+
 // 更新选中状态
 watch(
   () => props.torrent.fileStats,
   (newStats) => {
-    if (newStats) {
+    if (newStats && !hasLocalEdits.value) {
       const newCheckedKeys: string[] = []
       props.torrent.files?.forEach((file, index) => {
         if (newStats[index]?.wanted) {
@@ -203,6 +206,14 @@ watch(
     }
   },
   { immediate: true }
+)
+
+// 种子切换时重置本地编辑状态
+watch(
+  () => props.torrent.id,
+  () => {
+    hasLocalEdits.value = false
+  }
 )
 
 // 渲染文件/目录标签
@@ -270,6 +281,7 @@ const renderSuffix = (props: any) => {
 // 处理选中状态变化：仅更新本地状态，不触发请求；由用户点击“应用更改”后统一提交
 const onCheckedKeysChange = (keys: string[]) => {
   checkedKeys.value = keys
+  hasLocalEdits.value = true
 }
 
 // 计算当前勾选与后端 wanted 状态的差异
@@ -313,6 +325,7 @@ const applyCheckedChanges = async () => {
       args['files-unwanted'] = unwantedIndices
     }
     await rpc.torrentSet(args)
+    hasLocalEdits.value = false
     message.success(t('torrentDetail.files.fileSelectionUpdated'))
   } catch (error) {
     console.error('更新文件选择失败:', error)
@@ -326,6 +339,7 @@ const applyCheckedChanges = async () => {
 const selectAll = () => {
   const allKeys = props.torrent.files?.map((file) => file.name) || []
   checkedKeys.value = allKeys
+  hasLocalEdits.value = true
 }
 
 // 批量设置优先级
