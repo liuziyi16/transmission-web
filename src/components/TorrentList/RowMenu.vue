@@ -188,6 +188,7 @@ async function onDropdownSelect(key: string) {
       await rpc.torrentStart(ids)
       await sleep(1000)
       await torrentStore.fetchTorrents()
+      torrentStore.clearSelectedKeys()
       message.success(t('messages.taskStarted'))
       break
     case 'forceStart':
@@ -200,6 +201,7 @@ async function onDropdownSelect(key: string) {
       await rpc.torrentStop(ids)
       await sleep(1000)
       await torrentStore.fetchTorrents()
+      torrentStore.clearSelectedKeys()
       message.success(t('messages.taskPaused'))
       break
     case 'verify':

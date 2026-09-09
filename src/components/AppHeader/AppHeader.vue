@@ -183,6 +183,7 @@ const onStart = async () => {
   await rpc.torrentStart(torrentStore.selectedKeys)
   await sleep(1000)
   await torrentStore.fetchTorrents()
+  torrentStore.clearSelectedKeys()
   message.success($t('message.taskStarted'))
 }
 
@@ -193,6 +194,7 @@ const onPause = async () => {
   await rpc.torrentStop(torrentStore.selectedKeys)
   await sleep(1000)
   await torrentStore.fetchTorrents()
+  torrentStore.clearSelectedKeys()
   message.success($t('message.taskPaused'))
 }
 
