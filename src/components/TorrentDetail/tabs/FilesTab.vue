@@ -6,9 +6,6 @@
       </n-text>
       <div class="flex gap-2">
         <n-button size="small" @click="selectAll">{{ t('torrentDetail.files.selectAll') }}</n-button>
-        <n-button size="small" :loading="applying" :disabled="!hasPendingChanges" @click="applyCheckedChanges">
-          {{ t('torrentDetail.files.applyChanges') }}
-        </n-button>
         <n-dropdown :options="priorityOptions" @select="handleBatchPriority" placement="bottom-end">
           <n-button size="small">{{ t('torrentDetail.files.batchSetPriority') }}</n-button>
         </n-dropdown>
@@ -188,14 +185,11 @@ const defaultExpandedKeys = computed(() => {
   return keys
 })
 
-// 是否存在未应用的本地勾选修改：存在期间轮询刷新不覆盖用户勾选
-const hasLocalEdits = ref(false)
-
-// 更新选中状态
+// 更新选中状态：勾选即时提交，本地勾选始终跟随服务端 wanted 状态
 watch(
   () => props.torrent.fileStats,
   (newStats) => {
-    if (newStats && !hasLocalEdits.value) {
+    if (newStats) {
       const newCheckedKeys: string[] = []
       props.torrent.files?.forEach((file, index) => {
         if (newStats[index]?.wanted) {
@@ -206,14 +200,6 @@ watch(
     }
   },
   { immediate: true }
-)
-
-// 种子切换时重置本地编辑状态
-watch(
-  () => props.torrent.id,
-  () => {
-    hasLocalEdits.value = false
-  }
 )
 
 // 渲染文件/目录标签
@@ -278,20 +264,16 @@ const renderSuffix = (props: any) => {
   ])
 }
 
-// 处理选中状态变化：仅更新本地状态，不触发请求；由用户点击“应用更改”后统一提交
-const onCheckedKeysChange = (keys: string[]) => {
+// 处理选中状态变化：立即提交到服务端（与批量/单个优先级设置行为一致）
+const onCheckedKeysChange = async (keys: string[]) => {
+  const previous = checkedKeys.value
   checkedKeys.value = keys
-  hasLocalEdits.value = true
-}
 
-// 计算当前勾选与后端 wanted 状态的差异
-const checkedDiff = computed(() => {
   const wantedIndices: number[] = []
   const unwantedIndices: number[] = []
-
   props.torrent.files?.forEach((file, index) => {
     const stat = props.torrent.fileStats?.[index]
-    const checked = checkedKeys.value.includes(file.name)
+    const checked = keys.includes(file.name)
     if (checked && !(stat?.wanted ?? false)) {
       wantedIndices.push(index)
     } else if (!checked && (stat?.wanted ?? false)) {
@@ -299,23 +281,10 @@ const checkedDiff = computed(() => {
     }
   })
 
-  return { wantedIndices, unwantedIndices }
-})
-
-const hasPendingChanges = computed(
-  () => checkedDiff.value.wantedIndices.length > 0 || checkedDiff.value.unwantedIndices.length > 0
-)
-
-const applying = ref(false)
-
-// 提交勾选差异到后端
-const applyCheckedChanges = async () => {
-  const { wantedIndices, unwantedIndices } = checkedDiff.value
   if (wantedIndices.length === 0 && unwantedIndices.length === 0) {
     return
   }
 
-  applying.value = true
   try {
     const args: TorrentSetArgs = { ids: props.torrent.id }
     if (wantedIndices.length > 0) {
@@ -325,21 +294,20 @@ const applyCheckedChanges = async () => {
       args['files-unwanted'] = unwantedIndices
     }
     await rpc.torrentSet(args)
-    hasLocalEdits.value = false
-    message.success(t('torrentDetail.files.fileSelectionUpdated'))
+    torrentStore.fetchDetails()
   } catch (error) {
     console.error('更新文件选择失败:', error)
     message.error(t('torrentDetail.files.updateFileSelectionFailed'))
-  } finally {
-    applying.value = false
+    // 提交失败回滚到之前的勾选状态，等待轮询用服务端数据覆盖
+    checkedKeys.value = previous
   }
 }
 
-// 全选：仅更新本地勾选状态，与单文件勾选一致，由“应用更改”统一提交
+// 全选：更新本地勾选状态，由 onCheckedKeysChange 统一提交
 const selectAll = () => {
   const allKeys = props.torrent.files?.map((file) => file.name) || []
   checkedKeys.value = allKeys
-  hasLocalEdits.value = true
+  onCheckedKeysChange(allKeys)
 }
 
 // 批量设置优先级
@@ -379,6 +347,8 @@ const handleBatchPriority = async (priority: number) => {
 
     await rpc.torrentSet(args)
     torrentStore.fetchDetails()
+    // 批量设置完成后重置所有文件的选中状态
+    checkedKeys.value = []
     message.success(
       t('torrentDetail.files.prioritySet', { count: selectedIndices.length, priority: getPriorityString(priority as PriorityNumberType) })
     )

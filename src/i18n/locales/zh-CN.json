@@ -448,7 +448,6 @@
       "totalSize": "总大小",
       "selectAll": "全选",
       "batchSetPriority": "批量设置优先级",
-      "fileSelectionUpdated": "文件选择已更新",
       "updateFileSelectionFailed": "更新文件选择失败",
       "allFilesSelected": "已全选所有文件",
       "selectAllFailed": "全选失败",
@@ -457,8 +456,7 @@
       "setPriorityFailed": "设置优先级失败",
       "filePrioritySet": "已设置文件优先级为 {priority}",
       "setFilePriorityFailed": "设置文件优先级失败",
-      "normal": "正常",
-      "applyChanges": "应用更改"
+      "normal": "正常"
     },
     "peers": {
       "peers": "用户",

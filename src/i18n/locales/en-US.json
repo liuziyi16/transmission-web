@@ -448,7 +448,6 @@
       "totalSize": "Total Size",
       "selectAll": "Select All",
       "batchSetPriority": "Batch Set Priority",
-      "fileSelectionUpdated": "File selection updated",
       "updateFileSelectionFailed": "Failed to update file selection",
       "allFilesSelected": "All files selected",
       "selectAllFailed": "Select all failed",
@@ -457,8 +456,7 @@
       "setPriorityFailed": "Failed to set priority",
       "filePrioritySet": "File priority set to {priority}",
       "setFilePriorityFailed": "Failed to set file priority",
-      "normal": "Normal",
-      "applyChanges": "Apply Changes"
+      "normal": "Normal"
     },
     "peers": {
       "peers": "Peers",
