@@ -448,7 +448,6 @@
       "totalSize": "总大小",
       "selectAll": "全选",
       "batchSetPriority": "批量设置优先级",
-      "updateFileSelectionFailed": "更新文件选择失败",
       "allFilesSelected": "已全选所有文件",
       "selectAllFailed": "全选失败",
       "pleaseSelectFiles": "请先选择要设置优先级的文件",

@@ -448,7 +448,6 @@
       "totalSize": "Total Size",
       "selectAll": "Select All",
       "batchSetPriority": "Batch Set Priority",
-      "updateFileSelectionFailed": "Failed to update file selection",
       "allFilesSelected": "All files selected",
       "selectAllFailed": "Select all failed",
       "pleaseSelectFiles": "Please select files to set priority",

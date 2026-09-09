@@ -185,21 +185,12 @@ const defaultExpandedKeys = computed(() => {
   return keys
 })
 
-// 更新选中状态：勾选即时提交，本地勾选始终跟随服务端 wanted 状态
+// 勾选仅作为批量操作的选择集，不与服务端 wanted 状态联动；切换种子时清空
 watch(
-  () => props.torrent.fileStats,
-  (newStats) => {
-    if (newStats) {
-      const newCheckedKeys: string[] = []
-      props.torrent.files?.forEach((file, index) => {
-        if (newStats[index]?.wanted) {
-          newCheckedKeys.push(file.name)
-        }
-      })
-      checkedKeys.value = newCheckedKeys
-    }
-  },
-  { immediate: true }
+  () => props.torrent.id,
+  () => {
+    checkedKeys.value = []
+  }
 )
 
 // 渲染文件/目录标签
@@ -264,50 +255,15 @@ const renderSuffix = (props: any) => {
   ])
 }
 
-// 处理选中状态变化：立即提交到服务端（与批量/单个优先级设置行为一致）
-const onCheckedKeysChange = async (keys: string[]) => {
-  const previous = checkedKeys.value
+// 处理选中状态变化：仅更新本地选择集，不触发 torrent-set；
+// 只有「批量设置优先级」和「单文件状态标签修改」才会提交服务端
+const onCheckedKeysChange = (keys: string[]) => {
   checkedKeys.value = keys
-
-  const wantedIndices: number[] = []
-  const unwantedIndices: number[] = []
-  props.torrent.files?.forEach((file, index) => {
-    const stat = props.torrent.fileStats?.[index]
-    const checked = keys.includes(file.name)
-    if (checked && !(stat?.wanted ?? false)) {
-      wantedIndices.push(index)
-    } else if (!checked && (stat?.wanted ?? false)) {
-      unwantedIndices.push(index)
-    }
-  })
-
-  if (wantedIndices.length === 0 && unwantedIndices.length === 0) {
-    return
-  }
-
-  try {
-    const args: TorrentSetArgs = { ids: props.torrent.id }
-    if (wantedIndices.length > 0) {
-      args['files-wanted'] = wantedIndices
-    }
-    if (unwantedIndices.length > 0) {
-      args['files-unwanted'] = unwantedIndices
-    }
-    await rpc.torrentSet(args)
-    torrentStore.fetchDetails()
-  } catch (error) {
-    console.error('更新文件选择失败:', error)
-    message.error(t('torrentDetail.files.updateFileSelectionFailed'))
-    // 提交失败回滚到之前的勾选状态，等待轮询用服务端数据覆盖
-    checkedKeys.value = previous
-  }
 }
 
-// 全选：更新本地勾选状态，由 onCheckedKeysChange 统一提交
+// 全选：仅更新本地选择集
 const selectAll = () => {
-  const allKeys = props.torrent.files?.map((file) => file.name) || []
-  checkedKeys.value = allKeys
-  onCheckedKeysChange(allKeys)
+  checkedKeys.value = props.torrent.files?.map((file) => file.name) || []
 }
 
 // 批量设置优先级
